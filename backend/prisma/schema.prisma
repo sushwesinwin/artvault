@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USERS & AUTH ============
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String? // Null for OAuth-only users
+  firstName    String?
+  lastName     String?
+  bio          String?
+  avatarUrl    String?
+  role         Role     @default(ARTIST)
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  accounts  Account[]
+  artworks  Artwork[]
+  events    Event[]
+  orders    Order[]
+  comments  Comment[]
+  likes     Like[]
+  followers Follow[]  @relation("following")
+  following Follow[]  @relation("followers")
+
+  @@map("users")
+}
+
+enum Role {
+  ARTIST
+  BUYER
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  provider          String // "google", "github"
+  providerAccountId String
+  refreshToken      String?
+  accessToken       String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// ============ ARTWORKS ============
+
+model Artwork {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  imageUrl    String
+  price       Decimal? @db.Decimal(10, 2)
+  isForSale   Boolean  @default(false)
+  category    String?
+  tags        String[] // PostgreSQL array
+  artistId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  artist     User        @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  comments   Comment[]
+  likes      Like[]
+  orderItems OrderItem[]
+
+  @@map("artworks")
+}
+
+// ============ EVENTS ============
+
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  imageUrl    String?
+  location    String?
+  isOnline    Boolean   @default(false)
+  eventUrl    String? // For online events
+  startDate   DateTime
+  endDate     DateTime?
+  artistId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  artist User @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@map("events")
+}
+
+// ============ SOCIAL ============
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  artworkId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artwork Artwork @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  artworkId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artwork Artwork @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, artworkId]) // One like per user per artwork
+  @@map("likes")
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId]) // Can't follow same person twice
+  @@map("follows")
+}
+
+// ============ ORDERS ============
+
+model Order {
+  id        String      @id @default(uuid())
+  buyerId   String
+  status    OrderStatus @default(PENDING)
+  total     Decimal     @db.Decimal(10, 2)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  buyer User        @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  items OrderItem[]
+
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  artworkId String
+  price     Decimal @db.Decimal(10, 2)
+  quantity  Int     @default(1)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  artwork Artwork @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
