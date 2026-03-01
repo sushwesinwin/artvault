@@ -28,4 +28,11 @@ yarn-error.log*
 
 # Misc
 *.tsbuildinfo
-next-env.d.ts
+next-env.d.tsbackend/.serena/
+docs/
+
+# Auto-generated
+.claude/
+CLAUDE.md
+backend/.serena/
+docs/
